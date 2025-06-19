@@ -1,233 +1,267 @@
 // lib/features/categories/categories_screen.dart
 import 'package:flutter/material.dart';
-import '../../core/widgets/top_app_bar.dart';
-import '../../models/category_item.dart';
-import '../../core/widgets/category_tile.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' as drift;
+import '../../data/repositories/categories_repository.dart';
+import '../../data/db/local_db.dart';
 
-class CategoriesScreen extends StatelessWidget {
-  CategoriesScreen({super.key});
-
-  final List<CategoryItem> categories = [
-    CategoryItem('Продукти', Icons.shopping_basket, Colors.lightBlue),
-    CategoryItem('Ресторація', Icons.restaurant, Colors.indigo),
-    CategoryItem('Дозвілля', Icons.theaters, Colors.pinkAccent),
-    CategoryItem('Транспорт', Icons.directions_bus, Colors.orange),
-    CategoryItem('Здоров\'я', Icons.volunteer_activism, Colors.green),
-    CategoryItem('Сім\'я', Icons.sentiment_satisfied, Colors.purpleAccent),
-    CategoryItem('Подарунки', Icons.card_giftcard, Colors.redAccent),
-    CategoryItem('Покупки', Icons.shopping_bag, Colors.brown),
-  ];
+class CategoriesScreen extends ConsumerWidget {
+  const CategoriesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categoriesAsync = ref.watch(categoriesRepositoryProvider);
+
     return Scaffold(
-      // універсальний top-bar
-      appBar: const TopAppBar(
-        showMonth: true,
-        monthText: 'ЧЕРВЕНЬ 2025',
-      ),
-      body: Column(
-        children: [
-          const SizedBox(height: 12),
-          // ---- сітка категорій ----
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final cat = categories[index];
-                return GestureDetector(
-                  onTap: () => _openTransactionInput(context, cat),
-                  child: CategoryTile(item: cat),
-                );
-              },
-            ),
+      appBar: AppBar(
+        title: const Text('Категорії'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _showAddCategoryDialog(context, ref),
           ),
         ],
       ),
-    );
-  }
-
-  /* ------------------------------------------------------------------ */
-  /*                 MODAL: введення транзакції                         */
-  /* ------------------------------------------------------------------ */
-
-  void _openTransactionInput(BuildContext context, CategoryItem category) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _TransactionInputModal(category: category),
-    );
-  }
-}
-
-/* ==================================================================== */
-/*                     Вміст модального вікна                           */
-/* ==================================================================== */
-
-class _TransactionInputModal extends StatefulWidget {
-  final CategoryItem category;
-  const _TransactionInputModal({required this.category});
-
-  @override
-  State<_TransactionInputModal> createState() => _TransactionInputModalState();
-}
-
-class _TransactionInputModalState extends State<_TransactionInputModal> {
-  final TextEditingController _noteCtrl = TextEditingController();
-  String _amount = '0';
-
-  void _onKeyboardTap(String v) {
-    setState(() {
-      if (v == '×') {
-        _amount = '0';
-      } else if (v == '✓') {
-        // TODO: зберегти транзакцію
-        Navigator.pop(context);
-      } else {
-        if (_amount == '0') _amount = '';
-        _amount += v;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cat = widget.category;
-    final calculatorLabels = [
-      '×', '7', '8', '9',
-      '−', '4', '5', '6',
-      '+', '1', '2', '3',
-      '₴', '0', ',', '✓',
-    ];
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.88,
-      maxChildSize: 0.95,
-      minChildSize: 0.6,
-      builder: (_, scrollCtrl) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- рахунок -> категорія ---
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade700,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'З рахунку\nКарта',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
+      body: categoriesAsync.when(
+        data: (categories) => categories.isEmpty
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.category, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text('Немає категорій', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                    SizedBox(height: 8),
+                    Text('Додайте свою першу категорію', style: TextStyle(color: Colors.grey)),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cat.color,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text('До категорії',
-                            style: TextStyle(color: Colors.white70, fontSize: 12)),
-                        Text(cat.title,
-                            style: const TextStyle(color: Colors.white, fontSize: 16)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // --- сума ---
-            Center(
-              child: Text(
-                'Витрата\n$_amount ₴',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: cat.color,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // --- нотатка ---
-            TextField(
-              controller: _noteCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Нотатки…',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // --- калькулятор ---
-            Expanded(
-              child: GridView.count(
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 4,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 1.1,
-                children: List.generate(calculatorLabels.length, (i) {
-                  final label = calculatorLabels[i];
-                  final isAction = (label == '×' || label == '✓');
-                  final isEqual = label == '✓';
-                  return ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isEqual
-                          ? cat.color
-                          : isAction
-                          ? Colors.grey.shade300
-                          : Colors.grey.shade100,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              )
+            : ListView.builder(
+                itemCount: categories.length,
+                itemBuilder: (context, index) {
+                  final category = categories[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Color(category.color).withOpacity(0.2),
+                        child: Icon(Icons.category, color: Color(category.color)),
                       ),
-                    ),
-                    onPressed: () => _onKeyboardTap(label),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 20,
-                        color: isEqual ? Colors.white : Colors.black,
+                      title: Text(category.title),
+                      trailing: PopupMenuButton(
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit),
+                                SizedBox(width: 8),
+                                Text('Редагувати'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text('Видалити', style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _showEditCategoryDialog(context, ref, category);
+                          } else if (value == 'delete') {
+                            _showDeleteCategoryDialog(context, ref, category.id);
+                          }
+                        },
                       ),
                     ),
                   );
-                }),
+                },
               ),
-            ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Помилка завантаження: $error'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            // --- дата ---
-            Center(
-              child: Text(
-                'Сьогодні, 19 черв. 2025 р.',
-                style: TextStyle(color: Colors.grey.shade600),
+  void _showAddCategoryDialog(BuildContext context, WidgetRef ref) {
+    final titleController = TextEditingController();
+    Color selectedColor = Colors.blue;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Додати категорію'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Назва категорії'),
               ),
+              const SizedBox(height: 16),
+              const Text('Колір:'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  Colors.red,
+                  Colors.blue,
+                  Colors.green,
+                  Colors.orange,
+                  Colors.purple,
+                  Colors.pink,
+                ].map((color) => GestureDetector(
+                  onTap: () => setState(() => selectedColor = color),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: selectedColor == color 
+                          ? Border.all(color: Colors.black, width: 3)
+                          : null,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Скасувати'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.isNotEmpty) {
+                  await ref.read(categoriesRepositoryProvider.notifier).addCategory(
+                    CategoriesCompanion.insert(
+                      title: titleController.text,
+                      color: selectedColor.value,
+                    ),
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Додати'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showEditCategoryDialog(BuildContext context, WidgetRef ref, category) {
+    final titleController = TextEditingController(text: category.title);
+    Color selectedColor = Color(category.color);
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Редагувати категорію'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Назва категорії'),
+              ),
+              const SizedBox(height: 16),
+              const Text('Колір:'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  Colors.red,
+                  Colors.blue,
+                  Colors.green,
+                  Colors.orange,
+                  Colors.purple,
+                  Colors.pink,
+                ].map((color) => GestureDetector(
+                  onTap: () => setState(() => selectedColor = color),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: selectedColor == color 
+                          ? Border.all(color: Colors.black, width: 3)
+                          : null,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Скасувати'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.isNotEmpty) {
+                  await ref.read(categoriesRepositoryProvider.notifier).updateCategory(
+                    CategoriesCompanion(
+                      id: drift.Value(category.id),
+                      title: drift.Value(titleController.text),
+                      color: drift.Value(selectedColor.value),
+                    ),
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Зберегти'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteCategoryDialog(BuildContext context, WidgetRef ref, int categoryId) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('Видалити категорію'),
+        content: const Text('Ви впевнені, що хочете видалити цю категорію?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Скасувати'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await ref.read(categoriesRepositoryProvider.notifier).deleteCategory(categoryId);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Видалити', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

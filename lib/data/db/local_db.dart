@@ -36,9 +36,23 @@ class Transactions extends Table {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    final dir  = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'money.db'));
-    return NativeDatabase(file, logStatements: true);
+    String dbPath;
+    if (Platform.isWindows) {
+      // Зберігаємо базу поруч з .exe (у робочій директорії)
+      dbPath = p.join(Directory.current.path, 'money.sqlite');
+    } else {
+      // Для мобільних платформ
+      final dir = await getApplicationDocumentsDirectory();
+      dbPath = p.join(dir.path, 'money.sqlite');
+    }
+    final file = File(dbPath);
+
+    // Переконайтесь, що директорія існує (актуально для мобільних)
+    if (!await file.parent.exists()) {
+      await file.parent.create(recursive: true);
+    }
+
+    return NativeDatabase(file);
   });
 }
 
@@ -48,4 +62,30 @@ class LocalDb extends _$LocalDb {
 
   @override
   int get schemaVersion => 1;
+  
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (m) async {
+        // Create all tables on database creation
+        await m.createAll();
+      },
+      onUpgrade: (m, from, to) async {
+        // Handle future migrations here
+      },
+      beforeOpen: (details) async {
+        // Optionally verify or initialize data before opening
+        await customStatement('PRAGMA foreign_keys = ON');
+      },
+    );
+  }
+  
+  // Helper method to ensure database is ready
+  Future<void> ensureInitialized() async {
+    // This will trigger table creation if needed
+    await transaction(() async {
+      // Query any table to trigger initialization
+      await customSelect('SELECT 1').get();
+    });
+  }
 }

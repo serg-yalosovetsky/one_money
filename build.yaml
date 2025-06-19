@@ -1,0 +1,13 @@
+targets:
+  $default:
+    builders:
+      drift_dev|drift_dev:
+        enabled: true
+        generate_for:
+          - lib/data/db/**.dart
+      riverpod_generator|riverpod_generator:
+        enabled: true
+        generate_for:
+          - lib/**.dart
+        options:
+          provider_name_suffix: "Provider" 
